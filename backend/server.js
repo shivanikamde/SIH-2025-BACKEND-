@@ -37,7 +37,7 @@ const formSchema = new mongoose.Schema({
   saplingsPlanted: Number,
   walletAddress: String,
   imageUrl: String, // Azure Blob URL
-  status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+  status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -205,7 +205,7 @@ app.patch("/forms/:id/status", async (req, res) => {
     const { status } = req.body;
 
 
-    if (!["pending", "approved", "rejected"].includes(status)) {
+    if (!["Pending", "Approved", "Rejected"].includes(status)) {
       return res.status(400).json({ error: "Invalid status value" });
     }
 
