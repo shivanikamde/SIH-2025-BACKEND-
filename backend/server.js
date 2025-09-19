@@ -4,7 +4,9 @@ const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const multer = require("multer");
-const { BlobServiceClient } = require("@azure/storage-blob");
+const streamifier = require("streamifier");
+const cloudinary = require("cloudinary").v2;
+
 require("dotenv").config();
 
 const app = express();
@@ -12,16 +14,23 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // ---------------- MongoDB Connection ----------------
-
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ MongoDB Error:", err));
+  .catch((err) => console.error("❌ MongoDB Error:", err));
+
+// ---------------- Cloudinary Config ----------------
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // ---------------- Schemas ----------------
 const userSchema = new mongoose.Schema({
   username: String,
   password: String,
-  loggedIn: { type: Boolean, default: false }
+  loggedIn: { type: Boolean, default: false },
 });
 
 const formSchema = new mongoose.Schema({
@@ -32,27 +41,22 @@ const formSchema = new mongoose.Schema({
   plantationType: String,
   saplingsPlanted: Number,
   walletAddress: String,
-  imageUrl: String, // Azure Blob URL
-  createdAt: { type: Date, default: Date.now }
+  imageUrl: String, // Cloudinary URL
+  createdAt: { type: Date, default: Date.now },
 });
 
 const User = mongoose.model("User", userSchema, "users_db");
 const Admin = mongoose.model("Admin", userSchema, "admin_db");
 const Form = mongoose.model("Form", formSchema, "forms_db");
 
-// ---------------- Azure Blob Setup ----------------
-const blobServiceClient = BlobServiceClient.fromConnectionString(
-  process.env.AZURE_STORAGE_CONNECTION_STRING
-);
-const containerName = "useruploads"; // make sure this container exists
-const containerClient = blobServiceClient.getContainerClient(containerName);
-
 // ---------------- Login Route ----------------
 app.post("/login", async (req, res) => {
   const { username, password, role } = req.body;
 
   if (!username || !password || !role) {
-    return res.status(400).json({ error: "Username, password, and role are required" });
+    return res
+      .status(400)
+      .json({ error: "Username, password, and role are required" });
   }
 
   try {
@@ -95,10 +99,17 @@ app.post("/logout", async (req, res) => {
 });
 
 // ---------------- Form Submission Route ----------------
-// ---------------- Form Submission Route ----------------
 app.post("/form", async (req, res) => {
   try {
-    const { username, ngoName, description, location, plantationType, saplingsPlanted, walletAddress } = req.body;
+    const {
+      username,
+      ngoName,
+      description,
+      location,
+      plantationType,
+      saplingsPlanted,
+      walletAddress,
+    } = req.body;
 
     const newForm = new Form({
       username,
@@ -107,26 +118,25 @@ app.post("/form", async (req, res) => {
       location,
       plantationType,
       saplingsPlanted,
-      walletAddress
+      walletAddress,
     });
 
     await newForm.save();
     res.json({
       error: false,
       message: "Form data saved successfully",
-      formId: newForm._id
+      formId: newForm._id,
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({
       error: true,
-      message: "Failed to save form data"
+      message: "Failed to save form data",
     });
   }
 });
 
-
-// ---------------- Image Upload Route ----------------
+// ---------------- Image Upload Route (Cloudinary) ----------------
 const upload = multer({ storage: multer.memoryStorage() });
 
 app.post("/upload/:formId", upload.single("image"), async (req, res) => {
@@ -136,18 +146,25 @@ app.post("/upload/:formId", upload.single("image"), async (req, res) => {
 
     if (!file) return res.status(400).json({ error: "No file uploaded" });
 
-    const blobName = `${Date.now()}-${file.originalname}`;
-    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    let cldUploadStream = cloudinary.uploader.upload_stream(
+      { folder: "useruploads" },
+      async (error, result) => {
+        if (error) {
+          console.error(error);
+          return res.status(500).json({ error: "Cloudinary upload failed" });
+        }
 
-    await blockBlobClient.uploadData(file.buffer, {
-      blobHTTPHeaders: { blobContentType: file.mimetype }
-    });
+        // Save Cloudinary URL in MongoDB
+        await Form.findByIdAndUpdate(formId, { imageUrl: result.secure_url });
 
-    const imageUrl = blockBlobClient.url;
+        res.json({
+          message: "Image uploaded successfully",
+          imageUrl: result.secure_url,
+        });
+      }
+    );
 
-    await Form.findByIdAndUpdate(formId, { imageUrl });
-
-    res.json({ message: "Image uploaded successfully", imageUrl });
+    streamifier.createReadStream(file.buffer).pipe(cldUploadStream);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Image upload failed" });
