@@ -338,41 +338,41 @@ app.post("/form", async (req, res) => {
   }
 });
 
-// ---------------- Image Upload Route (MongoDB Binary Storage) ----------------
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+// // ---------------- Image Upload Route (MongoDB Binary Storage) ----------------
+// const storage = multer.memoryStorage();
+// const upload = multer({ storage: storage });
 
-app.post("/upload/:formId", upload.array("images", 10), async (req, res) => {
-  try {
-    const formId = req.params.formId;
+// app.post("/upload/:formId", upload.array("images", 10), async (req, res) => {
+//   try {
+//     const formId = req.params.formId;
 
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: "No files uploaded" });
-    }
+//     if (!req.files || req.files.length === 0) {
+//       return res.status(400).json({ error: "No files uploaded" });
+//     }
 
-    const savedImages = await Promise.all(
-      req.files.map((file) => {
-        const newImage = new ImageModel({
-          form_id: formId,
-          img: {
-            data: file.buffer,
-            contentType: file.mimetype,
-          },
-        });
-        return newImage.save();
-      })
-    );
+//     const savedImages = await Promise.all(
+//       req.files.map((file) => {
+//         const newImage = new ImageModel({
+//           form_id: formId,
+//           img: {
+//             data: file.buffer,
+//             contentType: file.mimetype,
+//           },
+//         });
+//         return newImage.save();
+//       })
+//     );
 
-    res.status(200).json({
-      message: "✅ Images uploaded to MongoDB",
-      formId,
-      uploaded: savedImages.length,
-    });
-  } catch (error) {
-    console.error("❌ Upload Error:", error);
-    res.status(500).json({ error: "Failed to upload images" });
-  }
-});
+//     res.status(200).json({
+//       message: "✅ Images uploaded to MongoDB",
+//       formId,
+//       uploaded: savedImages.length,
+//     });
+//   } catch (error) {
+//     console.error("❌ Upload Error:", error);
+//     res.status(500).json({ error: "Failed to upload images" });
+//   }
+// });
 
 // ---------------- Get All Forms ----------------
 app.get("/forms", async (req, res) => {
