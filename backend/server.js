@@ -146,28 +146,46 @@ app.post("/upload/:formId", upload.single("image"), async (req, res) => {
 
     if (!file) return res.status(400).json({ error: "No file uploaded" });
 
-    let cldUploadStream = cloudinary.uploader.upload_stream(
-      { folder: "useruploads" },
-      async (error, result) => {
-        if (error) {
-          console.error(error);
-          return res.status(500).json({ error: "Cloudinary upload failed" });
+    // Upload to Cloudinary
+    let imageUrl = null;
+    try {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: "ngo_uploads" },
+        async (error, result) => {
+          if (error) {
+            console.error("❌ Cloudinary Upload Error:", error);
+            // Update form without image
+            await Form.findByIdAndUpdate(formId, { imageUrl: null });
+            return res.json({
+              message: "Form saved but image upload failed",
+              imageUrl: null
+            });
+          }
+
+          imageUrl = result.secure_url;
+
+          await Form.findByIdAndUpdate(formId, { imageUrl });
+
+          return res.json({
+            message: "✅ Image uploaded successfully",
+            imageUrl
+          });
         }
+      );
 
-        // Save Cloudinary URL in MongoDB
-        await Form.findByIdAndUpdate(formId, { imageUrl: result.secure_url });
-
-        res.json({
-          message: "Image uploaded successfully",
-          imageUrl: result.secure_url,
-        });
-      }
-    );
-
-    streamifier.createReadStream(file.buffer).pipe(cldUploadStream);
+      // Convert buffer to stream
+      streamifier.createReadStream(file.buffer).pipe(uploadStream);
+    } catch (err) {
+      console.error("❌ Cloudinary Fatal Error:", err);
+      await Form.findByIdAndUpdate(formId, { imageUrl: null });
+      return res.json({
+        message: "Form saved but image upload failed",
+        imageUrl: null
+      });
+    }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Image upload failed" });
+    res.status(500).json({ error: "Server error while uploading" });
   }
 });
 
