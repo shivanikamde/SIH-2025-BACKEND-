@@ -95,6 +95,7 @@ app.post("/logout", async (req, res) => {
 });
 
 // ---------------- Form Submission Route ----------------
+// ---------------- Form Submission Route ----------------
 app.post("/form", async (req, res) => {
   try {
     const { username, ngoName, description, location, plantationType, saplingsPlanted, walletAddress } = req.body;
@@ -110,12 +111,20 @@ app.post("/form", async (req, res) => {
     });
 
     await newForm.save();
-    res.json({ message: "Form data saved successfully", formId: newForm._id });
+    res.json({
+      error: false,
+      message: "Form data saved successfully",
+      formId: newForm._id
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to save form data" });
+    res.status(500).json({
+      error: true,
+      message: "Failed to save form data"
+    });
   }
 });
+
 
 // ---------------- Image Upload Route ----------------
 const upload = multer({ storage: multer.memoryStorage() });
