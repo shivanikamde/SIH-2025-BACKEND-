@@ -6,7 +6,6 @@ const cors = require("cors");
 const multer = require("multer");
 const { BlobServiceClient } = require("@azure/storage-blob");
 require("dotenv").config();
-const cloudinary = require("./cloudinary");
 const streamifier = require("streamifier");
 
 
@@ -236,5 +235,5 @@ app.patch("/forms/:id/status", async (req, res) => {
 });
 
 // ---------------- Start Server ----------------
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
