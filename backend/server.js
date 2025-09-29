@@ -488,7 +488,50 @@ app.get("/forms", async (req, res) => {
 //     res.status(500).json({ error: "Failed to update form status" });
 //   }
 // });
+
 // new form id status + minting + 1st time trying
+// app.patch("/forms/:id/status", async (req, res) => {
+//   try {
+//     const { status } = req.body;
+
+//     if (!["Pending", "Approved", "Rejected"].includes(status)) {
+//       return res.status(400).json({ error: "Invalid status value" });
+//     }
+
+//     const updatedForm = await Form.findByIdAndUpdate(
+//       req.params.id,
+//       { status },
+//       { new: true }
+//     );
+
+//     if (!updatedForm) {
+//       return res.status(404).json({ error: "Form not found" });
+//     }
+
+//     // ✅ If approved, trigger blockchain minting
+//     if (status === "Approved") {
+//       const result = await triggerMinting(
+//         updatedForm.walletAddress,        // NGO wallet from DB
+//         updatedForm.saplingsPlanted,      // Number of tokens = saplings
+//         updatedForm._id.toString()        // Use project ID
+//       );
+
+//       if (result.success) {
+//         updatedForm.blockchainTx = result.transactionHash; // optional field
+//         await updatedForm.save();
+//       }
+//     }
+
+//     res.json({ message: "✅ Form status updated", form: updatedForm });
+
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Failed to update form status" });
+//   }
+// });
+
+//trying status + minting again 2nd time trying
+// ---------------- Update Form Status (DAO) ----------------
 app.patch("/forms/:id/status", async (req, res) => {
   try {
     const { status } = req.body;
@@ -510,13 +553,13 @@ app.patch("/forms/:id/status", async (req, res) => {
     // ✅ If approved, trigger blockchain minting
     if (status === "Approved") {
       const result = await triggerMinting(
-        updatedForm.walletAddress,        // NGO wallet from DB
-        updatedForm.saplingsPlanted,      // Number of tokens = saplings
-        updatedForm._id.toString()        // Use project ID
+        updatedForm.walletAddress,        // NGO wallet
+        updatedForm.saplingsPlanted,      // Tokens = saplings
+        updatedForm._id.toString()        // Project ID
       );
 
       if (result.success) {
-        updatedForm.blockchainTx = result.transactionHash; // optional field
+        updatedForm.blockchainTx = result.transactionHash; // store tx hash
         await updatedForm.save();
       }
     }
@@ -528,7 +571,6 @@ app.patch("/forms/:id/status", async (req, res) => {
     res.status(500).json({ error: "Failed to update form status" });
   }
 });
-
 
 // ----------------- NEW FEATURES START -----------------
 
