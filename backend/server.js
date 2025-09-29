@@ -406,24 +406,57 @@ app.post("/upload/:projectId", upload.single("image"), async (req, res) => {
   }
 });
 
-// ---------------- Get All Forms ----------------
 // ---------------- Get All Forms (projects) ----------------
 // If ngoId is provided, return only projects belonging to that NGO
+// app.get("/forms", async (req, res) => {
+//   try {
+//     const { ngoId } = req.query; // expecting query like /forms?ngoId=NGOID123
+//     let query = {};
+//     if (ngoId) {
+//       query.ngoId = ngoId;
+//     }
+
+//     const forms = await Form.find(query).sort({ createdAt: -1 });
+//     res.json(forms);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Failed to fetch forms" });
+//   }
+// });
+// ---------------- Get All Forms (projects) ----------------
 app.get("/forms", async (req, res) => {
   try {
-    const { ngoId } = req.query; // expecting query like /forms?ngoId=NGOID123
+    const { ngoId } = req.query; // ✅ read from query params
     let query = {};
+
     if (ngoId) {
-      query.ngoId = ngoId;
+      query.ngoId = ngoId; // ✅ filter by ngoId if provided
     }
 
     const forms = await Form.find(query).sort({ createdAt: -1 });
-    res.json(forms);
+
+    // ✅ transform _id → projectId before sending response
+    const response = forms.map(form => ({
+      projectId: form._id,
+      ngoId: form.ngoId,
+      projectName: form.projectName,
+      description: form.description,
+      location: form.location,
+      plantationType: form.plantationType,
+      saplingsPlanted: form.saplingsPlanted,
+      walletAddress: form.walletAddress,
+      imageUrl: form.imageUrl,
+      status: form.status,
+      createdAt: form.createdAt
+    }));
+
+    res.json(response);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch forms" });
   }
 });
+
 
 
 // ---------------- Update Form Status (DAO) ----------------
