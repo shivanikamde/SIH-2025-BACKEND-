@@ -407,15 +407,24 @@ app.post("/upload/:projectId", upload.single("image"), async (req, res) => {
 });
 
 // ---------------- Get All Forms ----------------
+// ---------------- Get All Forms (projects) ----------------
+// If ngoId is provided, return only projects belonging to that NGO
 app.get("/forms", async (req, res) => {
   try {
-    const forms = await Form.find().sort({ createdAt: -1 });
+    const { ngoId } = req.query; // expecting query like /forms?ngoId=NGOID123
+    let query = {};
+    if (ngoId) {
+      query.ngoId = ngoId;
+    }
+
+    const forms = await Form.find(query).sort({ createdAt: -1 });
     res.json(forms);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch forms" });
   }
 });
+
 
 // ---------------- Update Form Status (DAO) ----------------
 app.patch("/forms/:id/status", async (req, res) => {
