@@ -457,8 +457,34 @@ app.get("/forms", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch forms" });
   }
 });
+// ---------------- Get All Projects for Sale (Website) ----------------
+app.get("/projects-for-sale", async (req, res) => {
+  try {
+    const projects = await Form.find({}).sort({ createdAt: -1 });
 
+    const response = projects.map(project => ({
+      projectId: project._id,
+      ngoId: project.ngoId,
+      projectName: project.projectName,
+      description: project.description,
+      location: project.location,
+      plantationType: project.plantationType,
+      noOfPlantations: project.saplingsPlanted,
+      totalTokens: project.saplingsPlanted || 0,
+      costPerToken: project.price || 0,
+      totalCost: project.totalCost || (project.saplingsPlanted * (project.price || 0)),
+      walletAddress: project.walletAddress,
+      imageUrl: project.imageUrl,
+      status: project.status,
+      createdAt: project.createdAt
+    }));
 
+    res.json(response);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch projects for sale" });
+  }
+});
 
 // ---------------- Update Form Status (DAO) ----------------
 // app.patch("/forms/:id/status", async (req, res) => {
