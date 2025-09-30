@@ -209,7 +209,7 @@ const multer = require("multer");
 const { BlobServiceClient } = require("@azure/storage-blob");
 require("dotenv").config();
 const { triggerMinting } = require("./blockchain"); // import the function
-
+const { v4: uuidv4 } = require("uuid");
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -723,41 +723,41 @@ app.get("/sell-token/:ngoId", async (req, res) => {
 // new app post trying #2 6.10
 // ---------------- POST token sale info ----------------
 app.post("/token/sell", (req, res) => {
-  const { ngoId, projectId, pricePerToken, totalTokens, totalAmount } = req.body;
+  try {
+    const { ngoId, projectId, pricePerToken, totalTokens, totalAmount } = req.body;
 
-  // ✅ Validate
-  if (!ngoId || !projectId || !pricePerToken || !totalTokens || !totalAmount) {
-    return res.status(400).json({ error: "Missing required fields" });
+    if (!ngoId || !projectId || !pricePerToken || !totalTokens || !totalAmount) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const project = projects.find(p => p.projectId === projectId);
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    const transaction = {
+      transactionId: uuidv4(),
+      type: "sell",
+      ngoId,
+      projectId,
+      pricePerToken,
+      tokens: totalTokens,
+      amountReceived: totalAmount,
+      date: new Date().toISOString()
+    };
+
+    transactions.push(transaction);
+
+    res.json({
+      status: "success",
+      message: "Tokens listed for sale successfully",
+      transaction
+    });
+  } catch (err) {
+    console.error(err); // <-- log the error
+    res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
-
-  // ✅ Check if project exists
-  const project = projects.find(p => p.projectId === projectId);
-  if (!project) {
-    return res.status(404).json({ error: "Project not found" });
-  }
-
-  // ✅ Create transaction record
-  const transaction = {
-    transactionId: uuidv4(),
-    type: "sell",
-    ngoId,
-    projectId,
-    pricePerToken,
-    tokens: totalTokens,
-    amountReceived: totalAmount,
-    date: new Date().toISOString()
-  };
-
-  transactions.push(transaction);
-
-  // ✅ Respond success
-  res.json({
-    status: "success",
-    message: "Tokens listed for sale successfully",
-    transaction
-  });
 });
-
 // ----------------- NEW FEATURES START -----------------
 
 // ---------------- Company (credits) APIs ----------------
