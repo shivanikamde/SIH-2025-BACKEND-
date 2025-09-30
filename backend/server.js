@@ -210,6 +210,7 @@ const { BlobServiceClient } = require("@azure/storage-blob");
 require("dotenv").config();
 const { triggerMinting } = require("./blockchain"); // import the function
 const { v4: uuidv4 } = require("uuid");
+const Form = require("./models/Form"); // Your Mongoose model for projects
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
@@ -722,19 +723,34 @@ app.get("/sell-token/:ngoId", async (req, res) => {
 
 // new app post trying #2 6.10
 // ---------------- POST token sale info ----------------
-app.post("/token/sell", (req, res) => {
+app.post("/token/sell", async (req, res) => {
   try {
     const { ngoId, projectId, pricePerToken, totalTokens, totalAmount } = req.body;
 
-    if (!ngoId || !projectId || !pricePerToken || !totalTokens || !totalAmount) {
-      return res.status(400).json({ error: "Missing required fields" });
+    // ✅ Validate input
+    if (
+      !ngoId ||
+      !projectId ||
+      typeof pricePerToken !== "number" ||
+      typeof totalTokens !== "number" ||
+      typeof totalAmount !== "number"
+    ) {
+      return res.status(400).json({ error: "Missing or invalid fields" });
     }
 
-    const project = projects.find(p => p.projectId === projectId);
+    // ✅ Find project in MongoDB
+    const project = await Form.findOne({ _id: projectId, ngoId });
     if (!project) {
-      return res.status(404).json({ error: "Project not found" });
+      return res.status(404).json({ error: "Project not found for this NGO" });
     }
 
+    // ✅ Update project token sale info
+    project.price = pricePerToken;
+    project.totalTokens = totalTokens;
+    project.totalCost = totalAmount;
+    await project.save();
+
+    // ✅ Optional transaction record
     const transaction = {
       transactionId: uuidv4(),
       type: "sell",
@@ -746,18 +762,27 @@ app.post("/token/sell", (req, res) => {
       date: new Date().toISOString()
     };
 
-    transactions.push(transaction);
-
     res.json({
       status: "success",
       message: "Tokens listed for sale successfully",
+      project: {
+        projectId: project._id,
+        ngoId: project.ngoId,
+        projectName: project.projectName,
+        plantationType: project.plantationType,
+        noOfPlantations: project.saplingsPlanted,
+        pricePerToken: project.price,
+        totalTokens: project.totalTokens,
+        totalCost: project.totalCost
+      },
       transaction
     });
   } catch (err) {
-    console.error(err); // <-- log the error
+    console.error("❌ Error in /token/sell:", err);
     res.status(500).json({ error: "Internal Server Error", details: err.message });
   }
 });
+
 // ----------------- NEW FEATURES START -----------------
 
 // ---------------- Company (credits) APIs ----------------
