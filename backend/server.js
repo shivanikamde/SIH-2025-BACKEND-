@@ -461,20 +461,23 @@ app.post("/upload/:projectId", upload.single("image"), async (req, res) => {
 
 // get all forms w soldstatus 11.35
 // ---------------- GET all forms (with sold status) ----------------
+// ---------------- GET all forms (with sold status & listing date) ----------------
 app.get("/forms", async (req, res) => {
   try {
-    const { ngoId } = req.query; // ✅ read from query params
+    const { ngoId } = req.query; 
     let query = {};
 
     if (ngoId) {
-      query.ngoId = ngoId; // ✅ filter by ngoId if provided
+      query.ngoId = ngoId; 
     }
 
     const forms = await Form.find(query).sort({ createdAt: -1 });
 
-    // ✅ transform and add soldStatus
     const response = forms.map(form => {
-      const isSold = form.price && form.totalTokens; // check if token sale info exists
+      // ✅ check if project has been sold
+      const isSold =
+        form.price && form.totalTokens && form.totalCost &&
+        form.price > 0 && form.totalTokens > 0 && form.totalCost > 0;
 
       return {
         projectId: form._id,
@@ -488,7 +491,8 @@ app.get("/forms", async (req, res) => {
         imageUrl: form.imageUrl,
         status: form.status,
         createdAt: form.createdAt,
-        soldStatus: isSold ? "Sold" : "Not Sold" // ✅ new field
+        soldStatus: isSold ? "Sold" : "Not Sold",   // ✅ fixed
+        listingDate: isSold ? form.updatedAt : null // ✅ show when sold
       };
     });
 
