@@ -722,55 +722,41 @@ app.get("/sell-token/:ngoId", async (req, res) => {
 
 // new app post trying #2 6.10
 // ---------------- POST token sale info ----------------
-app.post("/sell-token/:ngoId/:projectId", async (req, res) => {
-  try {
-    const { ngoId, projectId } = req.params;
-    const { pricePerToken, totalTokens, totalAmount } = req.body;
+app.post("/token/sell", (req, res) => {
+  const { ngoId, projectId, pricePerToken, totalTokens, totalAmount } = req.body;
 
-    // ✅ Validate input
-    if (
-      typeof pricePerToken !== "number" ||
-      typeof totalTokens !== "number" ||
-      typeof totalAmount !== "number"
-    ) {
-      return res.status(400).json({
-        error: "pricePerToken, totalTokens, and totalAmount must all be numbers"
-      });
-    }
-
-    // ✅ Check if project exists for this NGO
-    const project = await Form.findOne({ _id: projectId, ngoId });
-    if (!project) {
-      return res.status(404).json({ error: "Project not found for this NGO" });
-    }
-
-    // ✅ Update project details with the sale info
-    project.price = pricePerToken;
-    project.totalTokens = totalTokens;
-    project.totalCost = totalAmount;
-    await project.save();
-
-    // ✅ Respond with success
-    res.json({
-      status: "success",
-      message: "Tokens listed for sale successfully",
-      project: {
-        projectId: project._id,
-        ngoId: project.ngoId,
-        projectName: project.projectName,
-        plantationType: project.plantationType,
-        noOfPlantations: project.saplingsPlanted,
-        pricePerToken: project.price,
-        totalTokens: project.totalTokens,
-        totalCost: project.totalCost
-      }
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to list tokens for sale" });
+  // ✅ Validate
+  if (!ngoId || !projectId || !pricePerToken || !totalTokens || !totalAmount) {
+    return res.status(400).json({ error: "Missing required fields" });
   }
-});
 
+  // ✅ Check if project exists
+  const project = projects.find(p => p.projectId === projectId);
+  if (!project) {
+    return res.status(404).json({ error: "Project not found" });
+  }
+
+  // ✅ Create transaction record
+  const transaction = {
+    transactionId: uuidv4(),
+    type: "sell",
+    ngoId,
+    projectId,
+    pricePerToken,
+    tokens: totalTokens,
+    amountReceived: totalAmount,
+    date: new Date().toISOString()
+  };
+
+  transactions.push(transaction);
+
+  // ✅ Respond success
+  res.json({
+    status: "success",
+    message: "Tokens listed for sale successfully",
+    transaction
+  });
+});
 
 // ----------------- NEW FEATURES START -----------------
 
