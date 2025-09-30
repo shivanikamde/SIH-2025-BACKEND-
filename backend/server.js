@@ -425,7 +425,42 @@ app.post("/upload/:projectId", upload.single("image"), async (req, res) => {
 //     res.status(500).json({ error: "Failed to fetch forms" });
 //   }
 // });
-// ---------------- Get All Forms (projects) ----------------
+// ---------------- Get All Forms (projects) ---------------- proper working
+// app.get("/forms", async (req, res) => {
+//   try {
+//     const { ngoId } = req.query; // ✅ read from query params
+//     let query = {};
+
+//     if (ngoId) {
+//       query.ngoId = ngoId; // ✅ filter by ngoId if provided
+//     }
+
+//     const forms = await Form.find(query).sort({ createdAt: -1 });
+
+//     // ✅ transform _id → projectId before sending response
+//     const response = forms.map(form => ({
+//       projectId: form._id,
+//       ngoId: form.ngoId,
+//       projectName: form.projectName,
+//       description: form.description,
+//       location: form.location,
+//       plantationType: form.plantationType,
+//       saplingsPlanted: form.saplingsPlanted,
+//       walletAddress: form.walletAddress,
+//       imageUrl: form.imageUrl,
+//       status: form.status,
+//       createdAt: form.createdAt
+//     }));
+
+//     res.json(response);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Failed to fetch forms" });
+//   }
+// });
+
+// get all forms w soldstatus 11.35
+// ---------------- GET all forms (with sold status) ----------------
 app.get("/forms", async (req, res) => {
   try {
     const { ngoId } = req.query; // ✅ read from query params
@@ -437,20 +472,25 @@ app.get("/forms", async (req, res) => {
 
     const forms = await Form.find(query).sort({ createdAt: -1 });
 
-    // ✅ transform _id → projectId before sending response
-    const response = forms.map(form => ({
-      projectId: form._id,
-      ngoId: form.ngoId,
-      projectName: form.projectName,
-      description: form.description,
-      location: form.location,
-      plantationType: form.plantationType,
-      saplingsPlanted: form.saplingsPlanted,
-      walletAddress: form.walletAddress,
-      imageUrl: form.imageUrl,
-      status: form.status,
-      createdAt: form.createdAt
-    }));
+    // ✅ transform and add soldStatus
+    const response = forms.map(form => {
+      const isSold = form.price && form.totalTokens; // check if token sale info exists
+
+      return {
+        projectId: form._id,
+        ngoId: form.ngoId,
+        projectName: form.projectName,
+        description: form.description,
+        location: form.location,
+        plantationType: form.plantationType,
+        saplingsPlanted: form.saplingsPlanted,
+        walletAddress: form.walletAddress,
+        imageUrl: form.imageUrl,
+        status: form.status,
+        createdAt: form.createdAt,
+        soldStatus: isSold ? "Sold" : "Not Sold" // ✅ new field
+      };
+    });
 
     res.json(response);
   } catch (err) {
@@ -458,6 +498,7 @@ app.get("/forms", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch forms" });
   }
 });
+
 
 // new form for project api 11.25pm
 app.get("/forms/:id", async (req, res) => {
