@@ -654,18 +654,16 @@ app.patch("/forms/:id/status", async (req, res) => {
 // });
 
 // ---------------- GET token sale details for an NGO ----------------
-app.get("/ngo/:ngoId/sell-token", async (req, res) => {
+app.get("/sell-token/:ngoId", async (req, res) => {
   try {
     const ngoId = req.params.ngoId;
 
-    // Find all projects belonging to the NGO
+    // Find all projects belonging to this NGO
     const projects = await Form.find({ ngoId });
-
     if (!projects || projects.length === 0) {
       return res.status(404).json({ error: "No projects found for this NGO" });
     }
 
-    // Prepare details for all projects under this NGO
     const details = projects.map((project) => {
       const totalTokens = project.saplingsPlanted || 0;
       const costPerToken = project.price || 0;
@@ -688,35 +686,88 @@ app.get("/ngo/:ngoId/sell-token", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch token sale details" });
   }
 });
+
+
 // ---------------- POST token sale info ----------------
-app.post("/ngo/:ngoId/sell-token/:projectId", async (req, res) => {
+// app.post("/sell-token/:ngoId/:projectId", async (req, res) => {
+//   try {
+//     const { ngoId, projectId } = req.params;
+//     const { costPerToken, totalCost } = req.body;
+
+//     if (typeof costPerToken !== "number" || typeof totalCost !== "number") {
+//       return res
+//         .status(400)
+//         .json({ error: "costPerToken and totalCost must be numbers" });
+//     }
+
+//     // Ensure project belongs to this NGO
+//     const project = await Form.findOne({ _id: projectId, ngoId });
+//     if (!project) {
+//       return res
+//         .status(404)
+//         .json({ error: "Project not found for this NGO" });
+//     }
+
+//     // Update project with new values
+//     project.price = costPerToken;
+//     project.totalCost = totalCost;
+//     await project.save();
+
+//     res.json({ message: "Token sale info updated", project });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Failed to update token sale info" });
+//   }
+// });
+
+// new app post trying #2 6.10
+// ---------------- POST token sale info ----------------
+app.post("/sell-token/:ngoId/:projectId", async (req, res) => {
   try {
     const { ngoId, projectId } = req.params;
-    const { costPerToken, totalCost } = req.body;
+    const { pricePerToken, totalTokens, totalAmount } = req.body;
 
-    if (typeof costPerToken !== "number" || typeof totalCost !== "number") {
-      return res
-        .status(400)
-        .json({ error: "costPerToken and totalCost must be numbers" });
+    // ✅ Validate input
+    if (
+      typeof pricePerToken !== "number" ||
+      typeof totalTokens !== "number" ||
+      typeof totalAmount !== "number"
+    ) {
+      return res.status(400).json({
+        error: "pricePerToken, totalTokens, and totalAmount must all be numbers"
+      });
     }
 
-    // Verify project belongs to the NGO
+    // ✅ Check if project exists for this NGO
     const project = await Form.findOne({ _id: projectId, ngoId });
     if (!project) {
-      return res
-        .status(404)
-        .json({ error: "Project not found for this NGO" });
+      return res.status(404).json({ error: "Project not found for this NGO" });
     }
 
-    // Update fields
-    project.price = costPerToken;
-    project.totalCost = totalCost;
+    // ✅ Update project details with the sale info
+    project.price = pricePerToken;
+    project.totalTokens = totalTokens;
+    project.totalCost = totalAmount;
     await project.save();
 
-    res.json({ message: "Token sale info updated", project });
+    // ✅ Respond with success
+    res.json({
+      status: "success",
+      message: "Tokens listed for sale successfully",
+      project: {
+        projectId: project._id,
+        ngoId: project.ngoId,
+        projectName: project.projectName,
+        plantationType: project.plantationType,
+        noOfPlantations: project.saplingsPlanted,
+        pricePerToken: project.price,
+        totalTokens: project.totalTokens,
+        totalCost: project.totalCost
+      }
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update token sale info" });
+    res.status(500).json({ error: "Failed to list tokens for sale" });
   }
 });
 
