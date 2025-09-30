@@ -655,20 +655,60 @@ app.patch("/forms/:id/status", async (req, res) => {
 // });
 
 // ---------------- GET token sale details for an NGO ----------------
-app.get("/sell-token/:ngoId", async (req, res) => {
-  try {
-    const ngoId = req.params.ngoId;
+// app.get("/sell-token/:ngoId", async (req, res) => {
+//   try {
+//     const ngoId = req.params.ngoId;
 
-    // Find all projects belonging to this NGO
-    const projects = await Form.find({ ngoId });
+//     // Find all projects belonging to this NGO
+//     const projects = await Form.find({ ngoId });
+//     if (!projects || projects.length === 0) {
+//       return res.status(404).json({ error: "No projects found for this NGO" });
+//     }
+
+//     const details = projects.map((project) => {
+//       const totalTokens = project.saplingsPlanted || 0;
+//       const costPerToken = project.price || 0;
+//       const totalCost = totalTokens * costPerToken;
+
+//       return {
+//         projectId: project._id,
+//         projectName: project.projectName,
+//         plantationType: project.plantationType,
+//         noOfPlantations: project.saplingsPlanted,
+//         totalTokens,
+//         costPerToken,
+//         totalCost,
+//       };
+//     });
+
+//     res.json({ ngoId, projects: details });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Failed to fetch token sale details" });
+//   }
+// });
+
+//get try #2 10.30pm
+// ---------------- GET sold token details for an NGO ----------------
+app.get("/sell-token", async (req, res) => {
+  try {
+    const ngoId = req.query.ngoId; // ✅ now from query param
+
+    if (!ngoId) {
+      return res.status(400).json({ error: "ngoId is required" });
+    }
+
+    // ✅ Find all projects that belong to NGO AND are sold (price set)
+    const projects = await Form.find({ ngoId, price: { $exists: true, $ne: 0 } });
+
     if (!projects || projects.length === 0) {
-      return res.status(404).json({ error: "No projects found for this NGO" });
+      return res.status(404).json({ error: "No sold projects found for this NGO" });
     }
 
     const details = projects.map((project) => {
-      const totalTokens = project.saplingsPlanted || 0;
+      const totalTokens = project.totalTokens || project.saplingsPlanted || 0;
       const costPerToken = project.price || 0;
-      const totalCost = totalTokens * costPerToken;
+      const totalCost = project.totalCost || totalTokens * costPerToken;
 
       return {
         projectId: project._id,
@@ -678,15 +718,17 @@ app.get("/sell-token/:ngoId", async (req, res) => {
         totalTokens,
         costPerToken,
         totalCost,
+        listingDate: project.updatedAt || project.createdAt || new Date() // ✅ listing date
       };
     });
 
-    res.json({ ngoId, projects: details });
+    res.json({ ngoId, soldProjects: details });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch token sale details" });
+    console.error("❌ Error in GET /sell-token:", err);
+    res.status(500).json({ error: "Failed to fetch sold token details", details: err.message });
   }
 });
+
 
 
 // ---------------- POST token sale info ----------------
