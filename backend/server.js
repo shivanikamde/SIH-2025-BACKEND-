@@ -458,6 +458,32 @@ app.get("/forms", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch forms" });
   }
 });
+
+// new form for project api 11.25pm
+app.get("/forms/:id", async (req, res) => {
+  try {
+    const projectId = req.params.id;
+
+    // Check if the provided ID is a valid format for MongoDB
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ error: "Invalid Project ID format" });
+    }
+
+    const project = await Form.findById(projectId);
+
+    // If the database search finds nothing, send a specific 404 error
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    // If the project is found, send its data
+    res.json(project);
+
+  } catch (err) {
+    console.error("Error fetching single project:", err);
+    res.status(500).json({ error: "Failed to fetch project" });
+  }
+});
 // ---------------- Get All Projects for Sale (Website) ----------------
 app.get("/projects-for-sale", async (req, res) => {
   try {
