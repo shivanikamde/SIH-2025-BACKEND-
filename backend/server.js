@@ -237,6 +237,7 @@ const formSchema = new mongoose.Schema({
   saplingsPlanted: Number,
   walletAddress: String,
   price: Number,                // optional, for marketplace
+  imageBase64: String,          // ✅ NEW FIELD for Base64 Image Data
   imageUrl: String,             // Azure Blob URL
   status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
   createdAt: { type: Date, default: Date.now }
