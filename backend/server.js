@@ -237,7 +237,7 @@ const formSchema = new mongoose.Schema({
   saplingsPlanted: Number,
   walletAddress: String,
   price: Number,                // optional, for marketplace
-  imageBase64: String,          // ✅ NEW FIELD for Base64 Image Data
+  imageBase64s: [String],       // ✅ UPDATED: Array for multiple Base64 Image Data
   imageUrl: String,             // Azure Blob URL
   status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
   createdAt: { type: Date, default: Date.now }
@@ -380,21 +380,61 @@ app.post("/form", async (req, res) => {
 // ---------------- Image Upload Route base 64 new 3.15pm ----------------
 // ---------------- Base64 Image Upload Route (NEW) ----------------
 // Flutter app will call this endpoint with a JSON body containing the Base64 string.
+// app.post("/upload-base64/:projectId", async (req, res) => {
+//   try {
+//     const projectId = req.params.projectId;
+//     // The Flutter app should send the Base64 string with the data URI prefix 
+//     // (e.g., "data:image/jpeg;base64,..." or "data:image/png;base64,...")
+//     const { imageBase64 } = req.body; 
+
+//     if (!imageBase64 || typeof imageBase64 !== 'string' || imageBase64.length < 50) {
+//       return res.status(400).json({ error: "Invalid or missing Base64 image data" });
+//     }
+
+//     // Update the project document with the Base64 string
+//     const updatedForm = await Form.findByIdAndUpdate(
+//       projectId,
+//       { imageBase64: imageBase64 }, 
+//       { new: true }
+//     );
+
+//     if (!updatedForm) {
+//       return res.status(404).json({ error: "Project not found" });
+//     }
+
+//     // Success response
+//     res.json({
+//       message: "Image (Base64) uploaded and linked successfully to project",
+//       projectId,
+//       // NOTE: We avoid sending the huge Base64 string back in the response
+//     });
+
+//   } catch (err) {
+//     console.error("❌ Base64 Upload Error:", err);
+//     // Be mindful of MongoDB's 16MB document size limit for large images
+//     if (err.message.includes('E11000')) {
+//         return res.status(413).json({ error: "Image too large. MongoDB document size limit exceeded (16MB)." });
+//     }
+//     res.status(500).json({ error: "Base64 image upload failed", details: err.message });
+//   }
+// });
+
 app.post("/upload-base64/:projectId", async (req, res) => {
   try {
     const projectId = req.params.projectId;
-    // The Flutter app should send the Base64 string with the data URI prefix 
-    // (e.g., "data:image/jpeg;base64,..." or "data:image/png;base64,...")
-    const { imageBase64 } = req.body; 
+    // Expecting an array of Base64 strings (data URIs)
+    const { imageBase64s } = req.body; 
 
-    if (!imageBase64 || typeof imageBase64 !== 'string' || imageBase64.length < 50) {
-      return res.status(400).json({ error: "Invalid or missing Base64 image data" });
+    // Validate the input: must be an array and contain at least one valid string
+    if (!Array.isArray(imageBase64s) || imageBase64s.length === 0 || 
+        !imageBase64s.every(img => typeof img === 'string' && img.length > 50)) {
+      return res.status(400).json({ error: "Invalid or missing array of Base64 image data" });
     }
 
-    // Update the project document with the Base64 string
+    // Update the project document with the array of Base64 strings
     const updatedForm = await Form.findByIdAndUpdate(
       projectId,
-      { imageBase64: imageBase64 }, 
+      { imageBase64s: imageBase64s }, // Use the new array field name
       { new: true }
     );
 
@@ -404,20 +444,26 @@ app.post("/upload-base64/:projectId", async (req, res) => {
 
     // Success response
     res.json({
-      message: "Image (Base64) uploaded and linked successfully to project",
+      message: "Images (Base64 array) uploaded and linked successfully to project",
       projectId,
-      // NOTE: We avoid sending the huge Base64 string back in the response
+      // NOTE: We avoid sending the huge Base64 strings back in the response
     });
 
   } catch (err) {
     console.error("❌ Base64 Upload Error:", err);
     // Be mindful of MongoDB's 16MB document size limit for large images
     if (err.message.includes('E11000')) {
-        return res.status(413).json({ error: "Image too large. MongoDB document size limit exceeded (16MB)." });
+        // This limit now applies to the total size of the document, including all Base64 strings combined.
+        return res.status(413).json({ error: "Total image size too large. MongoDB document size limit exceeded (16MB)." });
+    }
+    // Check for potential body-parser error on size limit 
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({ error: `Request body too large. Express limit is ${req.app.settings['body-parser-limit'] || '100mb'}. Try a smaller image array.` });
     }
     res.status(500).json({ error: "Base64 image upload failed", details: err.message });
   }
 });
+
 
 // ---------------- Get All Forms (projects) ----------------
 // If ngoId is provided, return only projects belonging to that NGO
@@ -541,7 +587,7 @@ app.get("/forms", async (req, res) => {
         plantationType: form.plantationType,
         saplingsPlanted: form.saplingsPlanted,
         walletAddress: form.walletAddress,
-        imageBase64: form.imageBase64, // ✅ Returning the Base64 data for website retrieval
+        imageBase64s: form.imageBase64s, // ✅ Returning the array of Base64 data
         status: form.status,
         createdAt: form.createdAt,
         soldStatus: isSold ? "Sold" : "Not Sold",
