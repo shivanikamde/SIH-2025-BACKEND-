@@ -376,35 +376,45 @@ app.post("/form", async (req, res) => {
   }
 });
 
-// ---------------- Image Upload Route ----------------
-const upload = multer({ storage: multer.memoryStorage() });
-
-app.post("/upload/:projectId", upload.single("image"), async (req, res) => {
+// ---------------- Image Upload Route base 64 new 3.15pm ----------------
+// ---------------- Base64 Image Upload Route (NEW) ----------------
+// Flutter app will call this endpoint with a JSON body containing the Base64 string.
+app.post("/upload-base64/:projectId", async (req, res) => {
   try {
     const projectId = req.params.projectId;
-    const file = req.file;
+    // The Flutter app should send the Base64 string with the data URI prefix 
+    // (e.g., "data:image/jpeg;base64,..." or "data:image/png;base64,...")
+    const { imageBase64 } = req.body; 
 
-    if (!file) return res.status(400).json({ error: "No file uploaded" });
+    if (!imageBase64 || typeof imageBase64 !== 'string' || imageBase64.length < 50) {
+      return res.status(400).json({ error: "Invalid or missing Base64 image data" });
+    }
 
-    const blobName = `${Date.now()}-${file.originalname}`;
-    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-
-    await blockBlobClient.uploadData(file.buffer, {
-      blobHTTPHeaders: { blobContentType: file.mimetype }
-    });
-
-    const imageUrl = blockBlobClient.url;
-
-    await Form.findByIdAndUpdate(projectId, { imageUrl });
-
-    res.json({
-      message: "Image uploaded successfully",
+    // Update the project document with the Base64 string
+    const updatedForm = await Form.findByIdAndUpdate(
       projectId,
-      imageUrl
+      { imageBase64: imageBase64 }, 
+      { new: true }
+    );
+
+    if (!updatedForm) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    // Success response
+    res.json({
+      message: "Image (Base64) uploaded and linked successfully to project",
+      projectId,
+      // NOTE: We avoid sending the huge Base64 string back in the response
     });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Image upload failed" });
+    console.error("❌ Base64 Upload Error:", err);
+    // Be mindful of MongoDB's 16MB document size limit for large images
+    if (err.message.includes('E11000')) {
+        return res.status(413).json({ error: "Image too large. MongoDB document size limit exceeded (16MB)." });
+    }
+    res.status(500).json({ error: "Base64 image upload failed", details: err.message });
   }
 });
 
@@ -462,6 +472,49 @@ app.post("/upload/:projectId", upload.single("image"), async (req, res) => {
 // get all forms w soldstatus 11.35
 // ---------------- GET all forms (with sold status) ----------------
 // ---------------- GET all forms (with sold status & listing date) ----------------
+// app.get("/forms", async (req, res) => {
+//   try {
+//     const { ngoId } = req.query; 
+//     let query = {};
+
+//     if (ngoId) {
+//       query.ngoId = ngoId; 
+//     }
+
+//     const forms = await Form.find(query).sort({ createdAt: -1 });
+
+//     const response = forms.map(form => {
+//       // ✅ check if project has been sold
+//       const isSold =
+//         form.price && form.totalTokens && form.totalCost &&
+//         form.price > 0 && form.totalTokens > 0 && form.totalCost > 0;
+
+//       return {
+//         projectId: form._id,
+//         ngoId: form.ngoId,
+//         projectName: form.projectName,
+//         description: form.description,
+//         location: form.location,
+//         plantationType: form.plantationType,
+//         saplingsPlanted: form.saplingsPlanted,
+//         walletAddress: form.walletAddress,
+//         imageUrl: form.imageUrl,
+//         status: form.status,
+//         createdAt: form.createdAt,
+//         soldStatus: isSold ? "Sold" : "Not Sold",   // ✅ fixed
+//         listingDate: isSold ? form.updatedAt : null // ✅ show when sold
+//       };
+//     });
+
+//     res.json(response);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Failed to fetch forms" });
+//   }
+// });
+
+//new get /form without id 3.20pm
+// ---------------- Get All Forms (projects) - MODIFIED for Base64 ----------------
 app.get("/forms", async (req, res) => {
   try {
     const { ngoId } = req.query; 
@@ -474,7 +527,6 @@ app.get("/forms", async (req, res) => {
     const forms = await Form.find(query).sort({ createdAt: -1 });
 
     const response = forms.map(form => {
-      // ✅ check if project has been sold
       const isSold =
         form.price && form.totalTokens && form.totalCost &&
         form.price > 0 && form.totalTokens > 0 && form.totalCost > 0;
@@ -488,11 +540,11 @@ app.get("/forms", async (req, res) => {
         plantationType: form.plantationType,
         saplingsPlanted: form.saplingsPlanted,
         walletAddress: form.walletAddress,
-        imageUrl: form.imageUrl,
+        imageBase64: form.imageBase64, // ✅ Returning the Base64 data for website retrieval
         status: form.status,
         createdAt: form.createdAt,
-        soldStatus: isSold ? "Sold" : "Not Sold",   // ✅ fixed
-        listingDate: isSold ? form.updatedAt : null // ✅ show when sold
+        soldStatus: isSold ? "Sold" : "Not Sold",
+        listingDate: isSold ? form.updatedAt : null
       };
     });
 
@@ -505,23 +557,48 @@ app.get("/forms", async (req, res) => {
 
 
 // new form for project api 11.25pm
+// app.get("/forms/:id", async (req, res) => {
+//   try {
+//     const projectId = req.params.id;
+
+//     // Check if the provided ID is a valid format for MongoDB
+//     if (!mongoose.Types.ObjectId.isValid(projectId)) {
+//       return res.status(400).json({ error: "Invalid Project ID format" });
+//     }
+
+//     const project = await Form.findById(projectId);
+
+//     // If the database search finds nothing, send a specific 404 error
+//     if (!project) {
+//       return res.status(404).json({ error: "Project not found" });
+//     }
+
+//     // If the project is found, send its data
+//     res.json(project);
+
+//   } catch (err) {
+//     console.error("Error fetching single project:", err);
+//     res.status(500).json({ error: "Failed to fetch project" });
+//   }
+// });
+
+// new get forms for id 
+// ---------------- Get Single Form (project) - MODIFIED for Base64 ----------------
 app.get("/forms/:id", async (req, res) => {
   try {
     const projectId = req.params.id;
 
-    // Check if the provided ID is a valid format for MongoDB
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
       return res.status(400).json({ error: "Invalid Project ID format" });
     }
 
     const project = await Form.findById(projectId);
 
-    // If the database search finds nothing, send a specific 404 error
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    // If the project is found, send its data
+    // Return the document including the imageBase64 field
     res.json(project);
 
   } catch (err) {
@@ -529,6 +606,8 @@ app.get("/forms/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch project" });
   }
 });
+
+
 // ---------------- Get All Projects for Sale (Website) ----------------
 app.get("/projects-for-sale", async (req, res) => {
   try {
